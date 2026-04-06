@@ -16,8 +16,9 @@ ok()   { printf "${GREEN}✓${RESET}  %s\n" "$*"; }
 # ---------------------------------------------------------------------------
 setup_colors() {
     if [ -t 1 ]; then
-        BOLD='\033[1m'; DIM='\033[2m'; RESET='\033[0m'
-        RED='\033[31m'; GREEN='\033[32m'; CYAN='\033[36m'; YELLOW='\033[33m'
+        BOLD=$(printf '\033[1m');  DIM=$(printf '\033[2m');   RESET=$(printf '\033[0m')
+        RED=$(printf '\033[31m');  GREEN=$(printf '\033[32m'); CYAN=$(printf '\033[36m')
+        YELLOW=$(printf '\033[33m')
     else
         BOLD=''; DIM=''; RESET=''; RED=''; GREEN=''; CYAN=''; YELLOW=''
     fi
@@ -179,7 +180,7 @@ show_instructions() {
             if copy_to_clipboard "$msg"; then
                 ok "Prompt copied to clipboard."
             else
-                printf "${DIM}  No clipboard tool found — please copy the prompt above manually.${RESET}\n"
+                printf "${DIM}  No clipboard tool found. Install xclip (X11), xsel, or wl-copy (Wayland) and re-run,\n  or copy the prompt above manually.${RESET}\n"
             fi
             ;;
     esac
