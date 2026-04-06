@@ -110,7 +110,7 @@ install_to_vendor() {
 # ---------------------------------------------------------------------------
 detect_agents() {
     for bin in claude cursor windsurf; do
-        command -v "$bin" >/dev/null 2>&1 && printf ' %s' "$bin"
+        command -v "$bin" >/dev/null 2>&1 && printf ' %s' "$bin" || true
     done
 }
 
@@ -129,7 +129,9 @@ show_instructions() {
     printf 'Location: vendor/%s\n\n' "$pkg"
 
     agents=$(detect_agents)
-    [ -n "$agents" ] && printf 'Detected coding agents:%s\n\n' "$agents"
+    if [ -n "$agents" ]; then
+        printf 'Detected coding agents:%s\n\n' "$agents"
+    fi
 
     printf 'Paste the following prompt into your AI coding agent to get started:\n'
     printf '\n%s\n' "────────────────────────────────────────────────"
