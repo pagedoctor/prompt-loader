@@ -120,15 +120,6 @@ install_to_vendor() {
 }
 
 # ---------------------------------------------------------------------------
-# Detect installed coding agents
-# ---------------------------------------------------------------------------
-detect_agents() {
-    for bin in claude cursor windsurf; do
-        command -v "$bin" >/dev/null 2>&1 && printf ' %s' "$bin" || true
-    done
-}
-
-# ---------------------------------------------------------------------------
 # Clipboard support — tries platform-native tools, silent on failure
 # ---------------------------------------------------------------------------
 copy_to_clipboard() {
@@ -149,6 +140,78 @@ copy_to_clipboard() {
 }
 
 # ---------------------------------------------------------------------------
+# Build numbered list of available agents; prints "n:name" lines
+# ---------------------------------------------------------------------------
+list_agents() {
+    i=0
+    for bin in claude cursor windsurf; do
+        if command -v "$bin" >/dev/null 2>&1; then
+            i=$((i + 1))
+            printf '%d:%s\n' "$i" "$bin"
+        fi
+    done
+}
+
+# ---------------------------------------------------------------------------
+# Ask user which agent to use; returns agent name or empty string
+# ---------------------------------------------------------------------------
+select_agent() {
+    agents=$(list_agents)
+    [ -z "$agents" ] && return 0
+
+    count=$(printf '%s\n' "$agents" | wc -l)
+    default=$(printf '%s\n' "$agents" | head -1 | cut -d: -f2)
+
+    printf '\n' >/dev/tty
+
+    if [ "$count" = "1" ]; then
+        printf "  Launch ${BOLD}%s${RESET} with the prompt? [Y/n] " "$default" >/dev/tty
+        read -r ans </dev/tty
+        case "${ans:-y}" in
+            [Yy]*) printf '%s' "$default" ;;
+        esac
+        return 0
+    fi
+
+    printf "  Select coding agent:\n" >/dev/tty
+    printf '%s\n' "$agents" | while IFS=: read -r n name; do
+        if [ "$n" = "1" ]; then
+            printf "    ${BOLD}%d)${RESET} %s  ${DIM}(default)${RESET}\n" "$n" "$name" >/dev/tty
+        else
+            printf "    %d) %s\n" "$n" "$name" >/dev/tty
+        fi
+    done
+    printf "  Choice [1]: " >/dev/tty
+    read -r choice </dev/tty
+    choice="${choice:-1}"
+
+    printf '%s\n' "$agents" | awk -F: -v c="$choice" '$1==c{print $2}'
+}
+
+# ---------------------------------------------------------------------------
+# Launch agent with the prompt injected
+# For CLI agents (claude): inject via flag
+# For GUI editors (cursor, windsurf): copy to clipboard and open
+# ---------------------------------------------------------------------------
+launch_agent() {
+    agent="$1"; msg="$2"
+    case "$agent" in
+        claude)
+            info "Launching Claude Code..."
+            claude -p "$msg"
+            ;;
+        cursor|windsurf)
+            if copy_to_clipboard "$msg"; then
+                ok "Prompt copied to clipboard."
+            fi
+            info "Opening $agent..."
+            "$agent" . &
+            printf "  ${DIM}Paste the prompt into the AI chat panel to begin.${RESET}\n"
+            ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
 # Post-install instructions
 # ---------------------------------------------------------------------------
 show_instructions() {
@@ -159,31 +222,31 @@ show_instructions() {
     printf "${BOLD}${CYAN}  Prompt Loader — Installation Complete${RESET}\n"
     printf "${DIM}  ──────────────────────────────────────${RESET}\n"
     printf "  ${DIM}Package${RESET}   ${BOLD}%s${RESET}\n" "$pkg"
-    printf "  ${DIM}Location${RESET}  ${BOLD}vendor/%s${RESET}\n" "$pkg"
-    printf '\n'
+    printf "  ${DIM}Location${RESET}  ${BOLD}vendor/%s${RESET}\n\n" "$pkg"
 
-    agents=$(detect_agents)
-    if [ -n "$agents" ]; then
-        printf "  ${DIM}Agents${RESET}   ${YELLOW}%s${RESET}\n\n" "$agents"
-    fi
-
-    printf "${DIM}  Paste this prompt into your AI coding agent:${RESET}\n\n"
+    printf "${DIM}  Prompt:${RESET}\n\n"
     printf "${YELLOW}  ┌──────────────────────────────────────────────────────────────┐${RESET}\n"
     printf "${YELLOW}  │${RESET} %s\n" "$msg"
-    printf "${YELLOW}  └──────────────────────────────────────────────────────────────┘${RESET}\n\n"
+    printf "${YELLOW}  └──────────────────────────────────────────────────────────────┘${RESET}\n"
 
-    printf "${DIM}  Copy prompt to clipboard? [Y/n]${RESET} " >/dev/tty
-    read -r answer </dev/tty
-    answer="${answer:-y}"
-    case "$answer" in
-        [Yy]*)
-            if copy_to_clipboard "$msg"; then
-                ok "Prompt copied to clipboard."
-            else
-                printf "${DIM}  No clipboard tool found. Install xclip (X11), xsel, or wl-copy (Wayland) and re-run,\n  or copy the prompt above manually.${RESET}\n"
-            fi
-            ;;
-    esac
+    agent=$(select_agent)
+
+    if [ -n "$agent" ]; then
+        launch_agent "$agent" "$msg"
+    else
+        printf '\n'
+        printf "${DIM}  Copy prompt to clipboard? [Y/n]${RESET} " >/dev/tty
+        read -r answer </dev/tty
+        case "${answer:-y}" in
+            [Yy]*)
+                if copy_to_clipboard "$msg"; then
+                    ok "Prompt copied to clipboard."
+                else
+                    printf "${DIM}  No clipboard tool found. Install xclip (X11), xsel, or wl-copy (Wayland)\n  and re-run, or copy the prompt above manually.${RESET}\n"
+                fi
+                ;;
+        esac
+    fi
 
     printf '\n'
 }
