@@ -5,9 +5,7 @@
 set -e
 
 ARTIFACT_URL="${1:-}"
-REPO_KEY="prompt-loader"
 tmpdir=""
-repo_added=0
 
 die()  { printf 'Error: %s\n' "$*" >&2; exit 1; }
 info() { printf '==> %s\n' "$*"; }
@@ -51,22 +49,6 @@ prompt_token() {
 }
 
 # ---------------------------------------------------------------------------
-# DDEV detection — walks up to project root
-# ---------------------------------------------------------------------------
-is_ddev() {
-    d="$PWD"
-    while [ "$d" != "/" ] && [ -n "$d" ]; do
-        [ -f "$d/.ddev/config.yaml" ] && return 0
-        d="$(dirname "$d")"
-    done
-    return 1
-}
-
-composer_bin() {
-    is_ddev && printf 'ddev composer' || printf 'composer'
-}
-
-# ---------------------------------------------------------------------------
 # HTTP download — returns HTTP status code, body written to $2
 # ---------------------------------------------------------------------------
 http_get() {
@@ -88,7 +70,7 @@ http_get() {
 # ---------------------------------------------------------------------------
 pkg_name_from_zip() {
     z="$1"
-    command -v unzip >/dev/null 2>&1 || die "unzip is required to inspect the artifact"
+    command -v unzip >/dev/null 2>&1 || die "unzip is required"
 
     cjson=$(unzip -l "$z" 2>/dev/null \
         | awk 'NF>=4 && /composer\.json$/ {print length($NF), $NF}' \
@@ -99,6 +81,28 @@ pkg_name_from_zip() {
     unzip -p "$z" "$cjson" 2>/dev/null \
         | grep -m1 '"name"' \
         | sed 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/'
+}
+
+# ---------------------------------------------------------------------------
+# Extract zip into vendor/, stripping a single top-level directory if present
+# ---------------------------------------------------------------------------
+install_to_vendor() {
+    z="$1"; pkg="$2"
+    target="vendor/$pkg"
+
+    extract_dir="$tmpdir/extracted"
+    unzip -q "$z" -d "$extract_dir"
+
+    top_count=$(ls -1 "$extract_dir" | wc -l)
+    if [ "$top_count" = "1" ]; then
+        src="$extract_dir/$(ls -1 "$extract_dir")"
+    else
+        src="$extract_dir"
+    fi
+
+    mkdir -p "$target"
+    cp -r "$src/." "$target/"
+    info "Installed to $target"
 }
 
 # ---------------------------------------------------------------------------
@@ -125,29 +129,18 @@ show_instructions() {
     printf 'Location: vendor/%s\n\n' "$pkg"
 
     agents=$(detect_agents)
-    if [ -n "$agents" ]; then
-        printf 'Detected coding agents:%s\n\n' "$agents"
-    fi
+    [ -n "$agents" ] && printf 'Detected coding agents:%s\n\n' "$agents"
 
     printf 'Paste the following prompt into your AI coding agent to get started:\n'
-    printf '\n%s\n\n' "────────────────────────────────────────────────"
+    printf '\n%s\n' "────────────────────────────────────────────────"
     printf '%s\n' "$msg"
     printf '%s\n\n' "────────────────────────────────────────────────"
 }
 
 # ---------------------------------------------------------------------------
-# Cleanup — removes temp dir and any orphaned composer repo config
+# Cleanup
 # ---------------------------------------------------------------------------
-cleanup() {
-    [ -n "$tmpdir" ] && rm -rf "$tmpdir" 2>/dev/null || true
-    if [ "$repo_added" = "1" ]; then
-        if is_ddev 2>/dev/null; then
-            ddev composer config --unset "repositories.$REPO_KEY" 2>/dev/null || true
-        else
-            composer config --unset "repositories.$REPO_KEY" 2>/dev/null || true
-        fi
-    fi
-}
+cleanup() { [ -n "$tmpdir" ] && rm -rf "$tmpdir" 2>/dev/null || true; }
 trap cleanup EXIT
 
 # ---------------------------------------------------------------------------
@@ -183,14 +176,8 @@ main() {
     pkg=$(pkg_name_from_zip "$artifact")
     [ -z "$pkg" ] && die "Could not determine package name from artifact"
 
-    composer=$(composer_bin)
     info "Installing $pkg..."
-    $composer config "repositories.$REPO_KEY" artifact "$tmpdir"
-    repo_added=1
-    $composer require "$pkg" --no-interaction
-    $composer config --unset "repositories.$REPO_KEY"
-    repo_added=0
-
+    install_to_vendor "$artifact" "$pkg"
     show_instructions "$pkg"
 }
 

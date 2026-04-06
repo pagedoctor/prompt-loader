@@ -1,28 +1,27 @@
 # Prompt Loader
 
-A single-command installer that downloads and installs Pagedoctor learning artifacts into your Composer project's `vendor/` folder, so your AI coding agent can immediately learn from episode-specific skills, tasks, and code snippets.
+A single-command installer that downloads and extracts Pagedoctor learning artifacts into your Composer project's `vendor/` folder, so your AI coding agent can immediately learn from episode-specific skills, tasks, and code snippets, without interfering with your local project structure.
 
 ## What is this?
 
-The [Pagedoctor Learning Platform](https://pagedoctor.io) publishes video episodes and community resources for TYPO3 developers. Each episode ships a **learning artifact** — a Composer package containing:
+The [Pagedoctor Learning Platform](https://pagedoctor.de) publishes video episodes and community resources for TYPO3 developers. Many episodes ship with a **AI-ready prompt artifact** — a package containing:
 
 - Context and background for the episode topic
 - Skills and tasks your AI agent can perform
 - Code snippets and patterns to apply directly
 - Instructions that prime the agent for the episode's coding workflow
 
-**Prompt Loader** fetches that artifact over a secure, authenticated URL and installs it into your project in one command. After installation it outputs a ready-to-paste prompt so your agent loads everything from the artifact and is immediately ready to assist.
+**Prompt Loader** fetches that artifact over a secure, authenticated URL and extracts it directly into your project's `vendor/` folder. Nothing is added to `composer.json` or `composer.lock` — the artifact is a dev-only AI tool, not a managed dependency. After installation it outputs a ready-to-paste prompt so your agent loads everything from the artifact and is immediately ready to assist.
 
 ## Requirements
 
 - `sh` (POSIX-compatible shell)
 - `curl` or `wget`
 - `unzip`
-- `composer` (or `ddev` for DDEV projects — detected automatically)
 
 ## Usage
 
-Each Pagedoctor episode displays its own install command. The general form is:
+Many Pagedoctor episodes display its own install command. The general form is:
 
 ```sh
 curl -sSL https://raw.githubusercontent.com/pagedoctor/prompt-loader/main/install.sh \
@@ -42,7 +41,7 @@ Replace `<artifact-url>` with the URL shown on the episode page.
 
 ```sh
 curl -sSL https://raw.githubusercontent.com/pagedoctor/prompt-loader/main/install.sh \
-  | sh -s -- https://packages.pagedoctor.io/episodes/ep042/artifact.zip
+  | sh -s -- https://pagedoctor.de/api/prompt-loader/get?uid=123
 ```
 
 ## Authentication
@@ -57,13 +56,9 @@ The first time you run Prompt Loader you will be prompted for your Pagedoctor au
 
 The token file is created with `600` permissions (owner read/write only). Subsequent runs reuse the stored token. If the token becomes invalid (HTTP 401/403), you are prompted for a new one automatically.
 
-## DDEV support
-
-Prompt Loader checks for a `.ddev/config.yaml` file in the current directory and its parents. When found, it runs `ddev composer` instead of `composer` — no configuration required.
-
 ## After installation
 
-Once the artifact is installed, Prompt Loader prints a prompt you can paste directly into any AI coding agent (Claude Code, Cursor, Windsurf, etc.):
+Once the artifact is installed to `vendor/`, Prompt Loader prints a prompt you can paste directly into any AI coding agent (Claude Code, Cursor, Windsurf, etc.):
 
 ```
 ══════════════════════════════════════════════
