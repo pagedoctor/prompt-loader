@@ -19,6 +19,16 @@ The [Pagedoctor Learning Platform](https://pagedoctor.de) publishes video episod
 - `curl` or `wget`
 - `unzip`
 
+## Platform support
+
+| Platform | Supported | Notes |
+|----------|-----------|-------|
+| macOS    | Yes       | Works out of the box |
+| Linux    | Yes       | Works out of the box |
+| Windows  | Partial   | Requires [Git Bash](https://git-scm.com) or [WSL2](https://learn.microsoft.com/en-us/windows/wsl/) — does not run in CMD or PowerShell |
+
+Windows users on a DDEV or Docker-based workflow typically already have Git Bash or WSL2 available.
+
 ## Usage
 
 Many Pagedoctor episodes display its own install command. The general form is:
