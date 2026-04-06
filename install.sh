@@ -7,8 +7,21 @@ set -e
 ARTIFACT_URL="${1:-}"
 tmpdir=""
 
-die()  { printf 'Error: %s\n' "$*" >&2; exit 1; }
-info() { printf '==> %s\n' "$*"; }
+die()  { printf "${RED}Error:${RESET} %s\n" "$*" >&2; exit 1; }
+info() { printf "${CYAN}==>${RESET} %s\n" "$*"; }
+ok()   { printf "${GREEN}✓${RESET}  %s\n" "$*"; }
+
+# ---------------------------------------------------------------------------
+# ANSI styles — disabled when stdout is not a terminal
+# ---------------------------------------------------------------------------
+setup_colors() {
+    if [ -t 1 ]; then
+        BOLD='\033[1m'; DIM='\033[2m'; RESET='\033[0m'
+        RED='\033[31m'; GREEN='\033[32m'; CYAN='\033[36m'; YELLOW='\033[33m'
+    else
+        BOLD=''; DIM=''; RESET=''; RED=''; GREEN=''; CYAN=''; YELLOW=''
+    fi
+}
 
 # ---------------------------------------------------------------------------
 # Platform-aware config directory
@@ -37,7 +50,7 @@ save_token() {
 }
 
 prompt_token() {
-    printf 'Enter your Pagedoctor authentication token: ' >/dev/tty
+    printf "${YELLOW}Pagedoctor authentication token:${RESET} " >/dev/tty
     if stty -echo </dev/tty 2>/dev/null; then
         read -r tok </dev/tty
         stty echo </dev/tty 2>/dev/null || true
@@ -102,7 +115,7 @@ install_to_vendor() {
 
     mkdir -p "$target"
     cp -r "$src/." "$target/"
-    info "Installed to $target"
+    ok "Installed to ${BOLD}$target${RESET}"
 }
 
 # ---------------------------------------------------------------------------
@@ -115,6 +128,26 @@ detect_agents() {
 }
 
 # ---------------------------------------------------------------------------
+# Clipboard support — tries platform-native tools, silent on failure
+# ---------------------------------------------------------------------------
+copy_to_clipboard() {
+    text="$1"
+    if command -v pbcopy >/dev/null 2>&1; then
+        printf '%s' "$text" | pbcopy
+    elif command -v clip.exe >/dev/null 2>&1; then
+        printf '%s' "$text" | clip.exe
+    elif command -v wl-copy >/dev/null 2>&1; then
+        printf '%s' "$text" | wl-copy
+    elif command -v xclip >/dev/null 2>&1; then
+        printf '%s' "$text" | xclip -selection clipboard
+    elif command -v xsel >/dev/null 2>&1; then
+        printf '%s' "$text" | xsel --clipboard --input
+    else
+        return 1
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # Post-install instructions
 # ---------------------------------------------------------------------------
 show_instructions() {
@@ -122,21 +155,36 @@ show_instructions() {
     msg=$(printf 'I have installed the Pagedoctor learning artifact `%s`. Please load all context, skills, tasks, instructions, and code snippets from `vendor/%s` in this project and apply them to assist me with TYPO3 development.' "$pkg" "$pkg")
 
     printf '\n'
-    printf '%s\n' '══════════════════════════════════════════════'
-    printf '%s\n' '   Prompt Loader — Installation Complete     '
-    printf '%s\n' '══════════════════════════════════════════════'
-    printf 'Package : %s\n' "$pkg"
-    printf 'Location: vendor/%s\n\n' "$pkg"
+    printf "${BOLD}${CYAN}  Prompt Loader — Installation Complete${RESET}\n"
+    printf "${DIM}  ──────────────────────────────────────${RESET}\n"
+    printf "  ${DIM}Package${RESET}   ${BOLD}%s${RESET}\n" "$pkg"
+    printf "  ${DIM}Location${RESET}  ${BOLD}vendor/%s${RESET}\n" "$pkg"
+    printf '\n'
 
     agents=$(detect_agents)
     if [ -n "$agents" ]; then
-        printf 'Detected coding agents:%s\n\n' "$agents"
+        printf "  ${DIM}Agents${RESET}   ${YELLOW}%s${RESET}\n\n" "$agents"
     fi
 
-    printf 'Paste the following prompt into your AI coding agent to get started:\n'
-    printf '\n%s\n' "────────────────────────────────────────────────"
-    printf '%s\n' "$msg"
-    printf '%s\n\n' "────────────────────────────────────────────────"
+    printf "${DIM}  Paste this prompt into your AI coding agent:${RESET}\n\n"
+    printf "${YELLOW}  ┌──────────────────────────────────────────────────────────────┐${RESET}\n"
+    printf "${YELLOW}  │${RESET} %s\n" "$msg"
+    printf "${YELLOW}  └──────────────────────────────────────────────────────────────┘${RESET}\n\n"
+
+    printf "${DIM}  Copy prompt to clipboard? [Y/n]${RESET} " >/dev/tty
+    read -r answer </dev/tty
+    answer="${answer:-y}"
+    case "$answer" in
+        [Yy]*)
+            if copy_to_clipboard "$msg"; then
+                ok "Prompt copied to clipboard."
+            else
+                printf "${DIM}  No clipboard tool found — please copy the prompt above manually.${RESET}\n"
+            fi
+            ;;
+    esac
+
+    printf '\n'
 }
 
 # ---------------------------------------------------------------------------
@@ -149,6 +197,7 @@ trap cleanup EXIT
 # Main
 # ---------------------------------------------------------------------------
 main() {
+    setup_colors
     [ -z "$ARTIFACT_URL" ] && die "Usage: install.sh <artifact-url>"
 
     token=$(load_token)
@@ -166,7 +215,7 @@ main() {
     status=$(http_get "$ARTIFACT_URL" "$artifact" "$token")
 
     if [ "$status" = "401" ] || [ "$status" = "403" ]; then
-        printf 'Authentication failed. Please enter a valid token.\n' >&2
+        printf "${RED}Authentication failed.${RESET} Please enter a valid token.\n" >&2
         token=$(prompt_token)
         [ -z "$token" ] && die "A valid token is required"
         save_token "$token"
