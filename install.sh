@@ -119,7 +119,7 @@ detect_agents() {
 # ---------------------------------------------------------------------------
 show_instructions() {
     pkg="$1"
-    msg="I have installed the Pagedoctor learning artifact \`$pkg\`. Please load all context, skills, tasks, instructions, and code snippets from \`vendor/$pkg\` in this project and apply them to assist me with TYPO3 development."
+    msg=$(printf 'I have installed the Pagedoctor learning artifact `%s`. Please load all context, skills, tasks, instructions, and code snippets from `vendor/%s` in this project and apply them to assist me with TYPO3 development.' "$pkg" "$pkg")
 
     printf '\n'
     printf '%s\n' '══════════════════════════════════════════════'
