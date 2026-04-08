@@ -156,7 +156,7 @@ show_instructions() {
     printf '%s\n' "$msg"
 
     printf '\n'
-    printf "${DIM}  Copy prompt to clipboard? [Y/n]${RESET} " >/dev/tty
+    printf "${DIM}  Copy prompt to clipboard? [${RESET}${BOLD}Enter${RESET}${DIM}=yes / n=no]${RESET} " >/dev/tty
     read -r answer </dev/tty
     case "${answer:-y}" in
         [Yy]*)
