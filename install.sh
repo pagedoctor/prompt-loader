@@ -7,9 +7,102 @@ set -e
 ARTIFACT_URL="${1:-}"
 tmpdir=""
 
-die()  { printf "${RED}Error:${RESET} %s\n" "$*" >&2; exit 1; }
+die()  { printf "${RED}${MSG_ERROR_LABEL:-Error}:${RESET} %s\n" "$*" >&2; exit 1; }
 info() { printf "${CYAN}==>${RESET} %s\n" "$*"; }
 ok()   { printf "${GREEN}✓${RESET}  %s\n" "$*"; }
+
+# ---------------------------------------------------------------------------
+# Locale detection and i18n string definitions
+# ---------------------------------------------------------------------------
+detect_locale() {
+    raw="${LC_ALL:-${LC_MESSAGES:-${LANGUAGE:-${LANG:-}}}}"
+    raw="${raw%%:*}"   # LANGUAGE can be "de:en" — take first entry
+    raw="${raw%%_*}"   # strip territory: de_DE → de
+    raw="${raw%%.*}"   # strip encoding: en.UTF-8 → en
+    lang=$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')
+    case "$lang" in
+        de) LOCALE_LANG="de" ;;
+        ja) LOCALE_LANG="ja" ;;
+        *)  LOCALE_LANG="en" ;;
+    esac
+}
+
+setup_i18n() {
+    case "${LOCALE_LANG:-en}" in
+        de)
+            MSG_ERROR_LABEL='Fehler'
+            MSG_TOKEN_PROMPT='Pagedoctor Authentifizierungstoken:'
+            MSG_CURL_REQUIRED='curl oder wget wird benötigt'
+            MSG_UNZIP_REQUIRED='unzip wird benötigt'
+            MSG_NO_COMPOSER_JSON='Keine composer.json im Artefakt gefunden'
+            MSG_INSTALLED_TO='Installiert nach %s'
+            MSG_TITLE='Prompt Loader — Installation abgeschlossen'
+            MSG_LABEL_PACKAGE='Paket'
+            MSG_LABEL_LOCATION='Speicherort'
+            MSG_LABEL_PROMPT='Prompt:'
+            MSG_CLIPBOARD_QUESTION='Prompt in Zwischenablage kopieren? [Enter=Ja / n=Nein]'
+            MSG_CLIPBOARD_OK='Prompt in die Zwischenablage kopiert.'
+            MSG_NO_CLIPBOARD='Kein Zwischenablage-Tool gefunden. Installiere xclip (X11), xsel oder wl-copy (Wayland)\n  und führe das Skript erneut aus, oder kopiere den Prompt oben manuell.'
+            MSG_USAGE='Verwendung: install.sh <artefakt-url>'
+            MSG_NO_TOKEN='Kein Authentifizierungstoken gefunden.'
+            MSG_TOKEN_REQUIRED='Ein gültiger Token ist erforderlich'
+            MSG_DOWNLOADING='Artefakt wird heruntergeladen...'
+            MSG_AUTH_FAILED='Authentifizierung fehlgeschlagen. Bitte gib einen gültigen Token ein.'
+            MSG_DOWNLOAD_FAILED='Download fehlgeschlagen (HTTP %s)'
+            MSG_NO_PKG_NAME='Paketname konnte nicht aus dem Artefakt ermittelt werden'
+            MSG_INSTALLING='Installiere %s...'
+            MSG_INJECT_PROMPT='Ich habe das Pagedoctor-Lernartefakt `%s` installiert. Bitte lade alle Kontexte, Skills, Aufgaben, Anweisungen und Code-Snippets aus `vendor/%s` in diesem Projekt und wende sie an, um mir bei der TYPO3-Entwicklung zu helfen.'
+            ;;
+        ja)
+            MSG_ERROR_LABEL='エラー'
+            MSG_TOKEN_PROMPT='Pagedoctor 認証トークン:'
+            MSG_CURL_REQUIRED='curl または wget が必要です'
+            MSG_UNZIP_REQUIRED='unzip が必要です'
+            MSG_NO_COMPOSER_JSON='アーティファクト内に composer.json が見つかりません'
+            MSG_INSTALLED_TO='%s にインストールしました'
+            MSG_TITLE='Prompt Loader — インストール完了'
+            MSG_LABEL_PACKAGE='パッケージ'
+            MSG_LABEL_LOCATION='場所'
+            MSG_LABEL_PROMPT='プロンプト:'
+            MSG_CLIPBOARD_QUESTION='プロンプトをクリップボードにコピーしますか？ [Enter=はい / n=いいえ]'
+            MSG_CLIPBOARD_OK='プロンプトをクリップボードにコピーしました。'
+            MSG_NO_CLIPBOARD='クリップボードツールが見つかりません。xclip (X11)、xsel、または wl-copy (Wayland) をインストールして\n  再実行するか、上記のプロンプトを手動でコピーしてください。'
+            MSG_USAGE='使用方法: install.sh <アーティファクトURL>'
+            MSG_NO_TOKEN='認証トークンが見つかりません。'
+            MSG_TOKEN_REQUIRED='有効なトークンが必要です'
+            MSG_DOWNLOADING='アーティファクトをダウンロード中...'
+            MSG_AUTH_FAILED='認証に失敗しました。有効なトークンを入力してください。'
+            MSG_DOWNLOAD_FAILED='ダウンロードに失敗しました (HTTP %s)'
+            MSG_NO_PKG_NAME='アーティファクトからパッケージ名を特定できません'
+            MSG_INSTALLING='%s をインストール中...'
+            MSG_INJECT_PROMPT='Pagedoctor の学習アーティファクト `%s` をインストールしました。このプロジェクトの `vendor/%s` からすべてのコンテキスト、スキル、タスク、指示、コードスニペットを読み込み、TYPO3 開発のサポートに役立ててください。'
+            ;;
+        *)
+            MSG_ERROR_LABEL='Error'
+            MSG_TOKEN_PROMPT='Pagedoctor authentication token:'
+            MSG_CURL_REQUIRED='curl or wget is required'
+            MSG_UNZIP_REQUIRED='unzip is required'
+            MSG_NO_COMPOSER_JSON='No composer.json found inside the artifact'
+            MSG_INSTALLED_TO='Installed to %s'
+            MSG_TITLE='Prompt Loader — Installation Complete'
+            MSG_LABEL_PACKAGE='Package'
+            MSG_LABEL_LOCATION='Location'
+            MSG_LABEL_PROMPT='Prompt:'
+            MSG_CLIPBOARD_QUESTION='Copy prompt to clipboard? [Enter=yes / n=no]'
+            MSG_CLIPBOARD_OK='Prompt copied to clipboard.'
+            MSG_NO_CLIPBOARD='No clipboard tool found. Install xclip (X11), xsel, or wl-copy (Wayland)\n  and re-run, or copy the prompt above manually.'
+            MSG_USAGE='Usage: install.sh <artifact-url>'
+            MSG_NO_TOKEN='No authentication token found.'
+            MSG_TOKEN_REQUIRED='A valid token is required'
+            MSG_DOWNLOADING='Downloading artifact...'
+            MSG_AUTH_FAILED='Authentication failed. Please enter a valid token.'
+            MSG_DOWNLOAD_FAILED='Download failed (HTTP %s)'
+            MSG_NO_PKG_NAME='Could not determine package name from artifact'
+            MSG_INSTALLING='Installing %s...'
+            MSG_INJECT_PROMPT='I have installed the Pagedoctor learning artifact `%s`. Please load all context, skills, tasks, instructions, and code snippets from `vendor/%s` in this project and apply them to assist me with TYPO3 development.'
+            ;;
+    esac
+}
 
 # ---------------------------------------------------------------------------
 # ANSI styles — disabled when stdout is not a terminal
@@ -51,7 +144,7 @@ save_token() {
 }
 
 prompt_token() {
-    printf "${YELLOW}Pagedoctor authentication token:${RESET} " >/dev/tty
+    printf "${YELLOW}%s${RESET} " "$MSG_TOKEN_PROMPT" >/dev/tty
     if stty -echo </dev/tty 2>/dev/null; then
         read -r tok </dev/tty
         stty echo </dev/tty 2>/dev/null || true
@@ -75,7 +168,7 @@ http_get() {
         awk '/HTTP\//{s=$2} END{print s+0}' "$hfile"
         rm -f "$hfile"
     else
-        die "curl or wget is required"
+        die "$MSG_CURL_REQUIRED"
     fi
 }
 
@@ -84,13 +177,13 @@ http_get() {
 # ---------------------------------------------------------------------------
 pkg_name_from_zip() {
     z="$1"
-    command -v unzip >/dev/null 2>&1 || die "unzip is required"
+    command -v unzip >/dev/null 2>&1 || die "$MSG_UNZIP_REQUIRED"
 
     cjson=$(unzip -l "$z" 2>/dev/null \
         | awk 'NF>=4 && /composer\.json$/ {print length($NF), $NF}' \
         | sort -n | head -1 | awk '{print $2}')
 
-    [ -z "$cjson" ] && die "No composer.json found inside the artifact"
+    [ -z "$cjson" ] && die "$MSG_NO_COMPOSER_JSON"
 
     unzip -p "$z" "$cjson" 2>/dev/null \
         | grep -m1 '"name"' \
@@ -116,7 +209,7 @@ install_to_vendor() {
 
     mkdir -p "$target"
     cp -r "$src/." "$target/"
-    ok "Installed to ${BOLD}$target${RESET}"
+    ok "$(printf "$MSG_INSTALLED_TO" "${BOLD}$target${RESET}")"
 }
 
 # ---------------------------------------------------------------------------
@@ -144,26 +237,26 @@ copy_to_clipboard() {
 # ---------------------------------------------------------------------------
 show_instructions() {
     pkg="$1"
-    msg=$(printf 'I have installed the Pagedoctor learning artifact `%s`. Please load all context, skills, tasks, instructions, and code snippets from `vendor/%s` in this project and apply them to assist me with TYPO3 development.' "$pkg" "$pkg")
+    msg=$(printf "$MSG_INJECT_PROMPT" "$pkg" "$pkg")
 
     printf '\n'
-    printf "${BOLD}${CYAN}  Prompt Loader — Installation Complete${RESET}\n"
+    printf "${BOLD}${CYAN}  %s${RESET}\n" "$MSG_TITLE"
     printf "${DIM}  ──────────────────────────────────────${RESET}\n"
-    printf "  ${DIM}Package${RESET}   ${BOLD}%s${RESET}\n" "$pkg"
-    printf "  ${DIM}Location${RESET}  ${BOLD}vendor/%s${RESET}\n\n" "$pkg"
+    printf "  ${DIM}%s${RESET}   ${BOLD}%s${RESET}\n" "$MSG_LABEL_PACKAGE" "$pkg"
+    printf "  ${DIM}%s${RESET}  ${BOLD}vendor/%s${RESET}\n\n" "$MSG_LABEL_LOCATION" "$pkg"
 
-    printf "${DIM}  Prompt:${RESET}\n\n"
+    printf "${DIM}  %s${RESET}\n\n" "$MSG_LABEL_PROMPT"
     printf '%s\n' "$msg"
 
     printf '\n'
-    printf "${DIM}  Copy prompt to clipboard? [${RESET}${BOLD}Enter${RESET}${DIM}=yes / n=no]${RESET} " >/dev/tty
+    printf "${DIM}  %s${RESET} " "$MSG_CLIPBOARD_QUESTION" >/dev/tty
     read -r answer </dev/tty
     case "${answer:-y}" in
         [Yy]*)
             if copy_to_clipboard "$msg"; then
-                ok "Prompt copied to clipboard."
+                ok "$MSG_CLIPBOARD_OK"
             else
-                printf "${DIM}  No clipboard tool found. Install xclip (X11), xsel, or wl-copy (Wayland)\n  and re-run, or copy the prompt above manually.${RESET}\n"
+                printf "${DIM}  $MSG_NO_CLIPBOARD${RESET}\n"
             fi
             ;;
     esac
@@ -182,36 +275,38 @@ trap cleanup EXIT
 # ---------------------------------------------------------------------------
 main() {
     setup_colors
-    [ -z "$ARTIFACT_URL" ] && die "Usage: install.sh <artifact-url>"
+    detect_locale
+    setup_i18n
+    [ -z "$ARTIFACT_URL" ] && die "$MSG_USAGE"
 
     token=$(load_token)
     if [ -z "$token" ]; then
-        info "No authentication token found."
+        info "$MSG_NO_TOKEN"
         token=$(prompt_token)
-        [ -z "$token" ] && die "A valid token is required"
+        [ -z "$token" ] && die "$MSG_TOKEN_REQUIRED"
         save_token "$token"
     fi
 
     tmpdir=$(mktemp -d)
     artifact="$tmpdir/artifact.zip"
 
-    info "Downloading artifact..."
+    info "$MSG_DOWNLOADING"
     status=$(http_get "$ARTIFACT_URL" "$artifact" "$token")
 
     if [ "$status" = "401" ] || [ "$status" = "403" ]; then
-        printf "${RED}Authentication failed.${RESET} Please enter a valid token.\n" >&2
+        printf "${RED}%s${RESET}\n" "$MSG_AUTH_FAILED" >&2
         token=$(prompt_token)
-        [ -z "$token" ] && die "A valid token is required"
+        [ -z "$token" ] && die "$MSG_TOKEN_REQUIRED"
         save_token "$token"
         status=$(http_get "$ARTIFACT_URL" "$artifact" "$token")
     fi
 
-    [ "$status" != "200" ] && die "Download failed (HTTP $status)"
+    [ "$status" != "200" ] && die "$(printf "$MSG_DOWNLOAD_FAILED" "$status")"
 
     pkg=$(pkg_name_from_zip "$artifact")
-    [ -z "$pkg" ] && die "Could not determine package name from artifact"
+    [ -z "$pkg" ] && die "$MSG_NO_PKG_NAME"
 
-    info "Installing $pkg..."
+    info "$(printf "$MSG_INSTALLING" "$pkg")"
     install_to_vendor "$artifact" "$pkg"
     show_instructions "$pkg"
 }
